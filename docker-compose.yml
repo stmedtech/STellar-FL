@@ -1,0 +1,88 @@
+x-default: &default
+  build:
+    context: .
+    args:
+      STEFAN_FL_REPO: ${STEFAN_FL_REPO}
+  image: stellar
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
+services:
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: always
+  redisinsight:
+    image: redislabs/redisinsight:latest
+    ports:
+      - "5540:5540"
+    environment:
+      - RI_REDIS_HOST=redis
+      - RI_REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+  stellar:
+    <<: *default
+    ports:
+      - 9417:9417
+    volumes:
+      - ./stellar/models:/app/models
+      - ./stellar/dist:/root/.local/share/stefan_fl
+    environment:
+      - STELLAR_NODE_URL=http://server-worker:1524
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+    depends_on:
+      redis:
+        condition: service_healthy
+  celery-flower:
+    <<: *default
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        pip install flower
+        celery -A celery_app flower
+    environment:
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - FLOWER_UNAUTHENTICATED_API=true
+    ports:
+      - 5555:5555
+    depends_on:
+      redis:
+        condition: service_healthy
+  server-worker:
+    <<: *default
+    entrypoint: ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+    shm_size: 8gb
+    environment:
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - LLM_MODEL_DIR=${LLM_MODEL_DIR}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./cache:/root/.local/share/stellar
+      - ./stellar-go/bootstrappers.txt:/app/bootstrappers.txt
+      - ./stellar/models:/app/models
+      - ./stellar/dist:/root/.local/share/stefan_fl
+    hostname: serverworker
+    depends_on:
+      redis:
+        condition: service_healthy
+

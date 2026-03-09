@@ -1,0 +1,9 @@
+[submodule "stellar-go"]
+	path = stellar-go
+	url = ../core/stellar-go
+[submodule "stefan-fl"]
+	path = stefan-fl
+	url = ../stefan-fl
+[submodule "stchain"]
+	path = stchain
+	url = ../stchain

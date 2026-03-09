@@ -1,0 +1,1 @@
+FLOWER_UNAUTHENTICATED_API=true celery -A celery_app flower

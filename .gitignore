@@ -214,3 +214,8 @@ __marimo__/
 
 
 models/
+dataset/
+logs/
+cache/
+
+docker-compose.*.yml
